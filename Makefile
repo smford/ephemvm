@@ -2,10 +2,16 @@
 
 BIN_DIR := bin
 BINARY := $(BIN_DIR)/ephemvm
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0")
-LDFLAGS := -s -w -X main.version=$(VERSION)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0")
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-.PHONY: all build build-all build-linux test test-integration lint vet clean
+LDFLAGS := -s -w \
+	-X github.com/smford/ephemvm/internal/version.Version=$(VERSION) \
+	-X github.com/smford/ephemvm/internal/version.Commit=$(COMMIT) \
+	-X github.com/smford/ephemvm/internal/version.Date=$(DATE)
+
+.PHONY: all build build-all build-linux build-linux-amd64 build-linux-arm64 build-darwin-arm64 test test-integration lint vet clean
 
 all: vet test build
 

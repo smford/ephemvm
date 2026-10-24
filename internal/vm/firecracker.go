@@ -1,17 +1,31 @@
 package vm
 
 import (
-	"errors"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/smford/ephemvm/internal/config"
 )
 
 // ErrUnsupportedPlatform indicates that ephemvm requires Linux with KVM.
-var ErrUnsupportedPlatform = errors.New("ephemvm requires Linux with KVM hardware virtualization (/dev/kvm)")
+var ErrUnsupportedPlatform = errorsNew("ephemvm requires Linux with KVM hardware virtualization (/dev/kvm)")
 
+func errorsNew(text string) error {
+	return &customError{text: text}
+}
+
+type customError struct {
+	text string
+}
+
+func (e *customError) Error() string {
+	return e.text
+}
 
 // ShellEscapeArgs escapes and concatenates arguments for POSIX /bin/sh.
 func ShellEscapeArgs(args []string) string {
@@ -41,12 +55,62 @@ func ShellEscape(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// BuildBootArgs formats the kernel command line parameters.
-// Format: console=ttyS0 reboot=k panic=1 init=/bin/sh -- -c "<cmd>; echo __EXIT_CODE:$?__; reboot -f"
-func BuildBootArgs(customArgs string, cmdArgs []string, arch string) string {
+// BuildGuestScript constructs the guest command string including environment exports and scripts.
+func BuildGuestScript(cfg *config.Config, stdin io.Reader) (string, error) {
+	var envBuilder strings.Builder
+	for _, envVar := range cfg.Env {
+		var key, val string
+		if idx := strings.Index(envVar, "="); idx != -1 {
+			key = envVar[:idx]
+			val = envVar[idx+1:]
+		} else {
+			key = envVar
+			val = os.Getenv(key)
+		}
+		if key != "" {
+			envBuilder.WriteString(fmt.Sprintf("export %s=%s; ", key, ShellEscape(val)))
+		}
+	}
+
+	var cmdStr string
+	if cfg.ScriptPath != "" {
+		var scriptBytes []byte
+		if cfg.ScriptPath == "-" {
+			if stdin == nil {
+				return "", fmt.Errorf("stdin is required when script path is '-'")
+			}
+			var err error
+			scriptBytes, err = io.ReadAll(stdin)
+			if err != nil {
+				return "", fmt.Errorf("failed to read script from stdin: %w", err)
+			}
+		} else {
+			var err error
+			scriptBytes, err = os.ReadFile(cfg.ScriptPath)
+			if err != nil {
+				return "", fmt.Errorf("failed to read script file %s: %w", cfg.ScriptPath, err)
+			}
+		}
+		encoded := base64.StdEncoding.EncodeToString(scriptBytes)
+		cmdArgs := ShellEscapeArgs(cfg.Args)
+		if cmdArgs != "" {
+			cmdStr = fmt.Sprintf("echo %s | base64 -d > /tmp/run.sh && chmod +x /tmp/run.sh && /bin/sh /tmp/run.sh %s", encoded, cmdArgs)
+		} else {
+			cmdStr = fmt.Sprintf("echo %s | base64 -d > /tmp/run.sh && chmod +x /tmp/run.sh && /bin/sh /tmp/run.sh", encoded)
+		}
+	} else {
+		cmdStr = ShellEscapeArgs(cfg.Args)
+	}
+
+	fullScript := fmt.Sprintf("%s%s; echo %s$?%s; reboot -f", envBuilder.String(), cmdStr, sentinelPrefix, sentinelSuffix)
+	return fullScript, nil
+}
+
+// BuildBootArgs formats the kernel command line parameters for a Config.
+func BuildBootArgs(cfg *config.Config, arch string, stdin io.Reader) (string, error) {
 	var baseArgs string
-	if customArgs != "" {
-		baseArgs = customArgs
+	if cfg.KernelArgs != "" {
+		baseArgs = cfg.KernelArgs
 	} else {
 		// Default fast-boot arguments
 		baseArgs = "console=ttyS0 reboot=k panic=1 quiet loglevel=1 pci=off"
@@ -55,15 +119,17 @@ func BuildBootArgs(customArgs string, cmdArgs []string, arch string) string {
 		}
 	}
 
-	escapedCmd := ShellEscapeArgs(cmdArgs)
-	guestScript := fmt.Sprintf("%s; echo %s$?%s; reboot -f", escapedCmd, sentinelPrefix, sentinelSuffix)
+	guestScript, err := BuildGuestScript(cfg, stdin)
+	if err != nil {
+		return "", err
+	}
 
 	// Wrap in double quotes for init=/bin/sh -- -c "..."
-	// Escape any double quotes or backslashes
+	// Escape any backslashes and double quotes
 	escapedScript := strings.ReplaceAll(guestScript, `\`, `\\`)
 	escapedScript = strings.ReplaceAll(escapedScript, `"`, `\"`)
 
-	return fmt.Sprintf("%s init=/bin/sh -- -c \"%s\"", baseArgs, escapedScript)
+	return fmt.Sprintf("%s init=/bin/sh -- -c \"%s\"", baseArgs, escapedScript), nil
 }
 
 // FindFirecrackerBinary resolves the path to the firecracker binary.

@@ -31,16 +31,24 @@ func TestConfigValidate(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid config",
+			name: "valid config with args",
 			modify: func(cfg *Config) {
 				cfg.Args = []string{"echo", "hello"}
 			},
 			wantErr: false,
 		},
 		{
-			name: "empty args",
+			name: "valid config with script",
+			modify: func(cfg *Config) {
+				cfg.ScriptPath = "test.sh"
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty args and script",
 			modify: func(cfg *Config) {
 				cfg.Args = nil
+				cfg.ScriptPath = ""
 			},
 			wantErr: true,
 		},

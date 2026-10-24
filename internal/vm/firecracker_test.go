@@ -3,6 +3,8 @@ package vm
 import (
 	"strings"
 	"testing"
+
+	"github.com/smford/ephemvm/internal/config"
 )
 
 func TestShellEscape(t *testing.T) {
@@ -37,8 +39,13 @@ func TestShellEscapeArgs(t *testing.T) {
 }
 
 func TestBuildBootArgs(t *testing.T) {
-	args := []string{"echo", "hello"}
-	bootArgs := BuildBootArgs("", args, "amd64")
+	cfg := config.NewDefaultConfig()
+	cfg.Args = []string{"echo", "hello"}
+
+	bootArgs, err := BuildBootArgs(cfg, "amd64", nil)
+	if err != nil {
+		t.Fatalf("BuildBootArgs failed: %v", err)
+	}
 
 	if !strings.Contains(bootArgs, "console=ttyS0") {
 		t.Errorf("expected console=ttyS0 in boot args, got: %s", bootArgs)
@@ -60,11 +67,39 @@ func TestBuildBootArgs(t *testing.T) {
 	}
 }
 
-func TestBuildBootArgsCustom(t *testing.T) {
-	custom := "console=ttyS0 custom_flag=1"
-	bootArgs := BuildBootArgs(custom, []string{"ls"}, "amd64")
+func TestBuildBootArgsWithEnvAndScript(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.Env = []string{"API_KEY=secret-token", "DEBUG=1"}
+	cfg.ScriptPath = "-"
 
-	if !strings.HasPrefix(bootArgs, custom) {
+	stdin := strings.NewReader("echo 'script running'; uname -a")
+	bootArgs, err := BuildBootArgs(cfg, "amd64", stdin)
+	if err != nil {
+		t.Fatalf("BuildBootArgs failed: %v", err)
+	}
+
+	if !strings.Contains(bootArgs, "export API_KEY=secret-token") {
+		t.Errorf("expected API_KEY in boot args, got: %s", bootArgs)
+	}
+	if !strings.Contains(bootArgs, "export DEBUG=1") {
+		t.Errorf("expected DEBUG in boot args, got: %s", bootArgs)
+	}
+	if !strings.Contains(bootArgs, "base64 -d") {
+		t.Errorf("expected base64 decoding for script in boot args, got: %s", bootArgs)
+	}
+}
+
+func TestBuildBootArgsCustom(t *testing.T) {
+	cfg := config.NewDefaultConfig()
+	cfg.KernelArgs = "console=ttyS0 custom_flag=1"
+	cfg.Args = []string{"ls"}
+
+	bootArgs, err := BuildBootArgs(cfg, "amd64", nil)
+	if err != nil {
+		t.Fatalf("BuildBootArgs failed: %v", err)
+	}
+
+	if !strings.HasPrefix(bootArgs, cfg.KernelArgs) {
 		t.Errorf("expected custom prefix in boot args, got: %s", bootArgs)
 	}
 }

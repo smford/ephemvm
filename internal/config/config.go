@@ -49,6 +49,15 @@ type Config struct {
 	// LogLevel defines Firecracker log level ("Error", "Warning", "Info", "Debug").
 	LogLevel string
 
+	// ScriptPath specifies an optional local script file to run inside the guest.
+	ScriptPath string
+
+	// Env holds key=value environment variables to inject into the guest.
+	Env []string
+
+	// JSONOutput enables structured JSON reporting of execution telemetry.
+	JSONOutput bool
+
 	// Args contains the command and arguments to execute inside the microVM.
 	Args []string
 }
@@ -85,8 +94,8 @@ func (c *Config) Validate() error {
 	if c.MemoryMB < MinMemoryMB {
 		return fmt.Errorf("memory must be at least %d MB (got %d)", MinMemoryMB, c.MemoryMB)
 	}
-	if len(c.Args) == 0 {
-		return errors.New("command arguments cannot be empty")
+	if len(c.Args) == 0 && c.ScriptPath == "" {
+		return errors.New("command arguments or --script must be provided")
 	}
 	return nil
 }

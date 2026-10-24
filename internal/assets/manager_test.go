@@ -36,13 +36,52 @@ func TestManagerEnsureAssetsLocal(t *testing.T) {
 		t.Errorf("expected rootfs %s, got %s", customRootfs, r)
 	}
 
-	// Verify base rootfs permissions became 0444
 	info, err := os.Stat(customRootfs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if info.Mode().Perm() != 0444 {
 		t.Errorf("expected 0444 permissions on base rootfs, got %v", info.Mode().Perm())
+	}
+}
+
+func TestManagerStatusAndClean(t *testing.T) {
+	cacheDir := t.TempDir()
+	mgr := NewManager(cacheDir)
+
+	statuses, err := mgr.Status()
+	if err != nil {
+		t.Fatalf("Status failed: %v", err)
+	}
+	if len(statuses) != 2 {
+		t.Fatalf("expected 2 asset statuses, got %d", len(statuses))
+	}
+	for _, st := range statuses {
+		if st.Exists {
+			t.Errorf("expected asset %s to not exist initially", st.Name)
+		}
+	}
+
+	// Create fake asset and verify status
+	fakeKernelPath := filepath.Join(cacheDir, "vmlinux")
+	if err := os.WriteFile(fakeKernelPath, []byte("fake"), 0444); err != nil {
+		t.Fatal(err)
+	}
+
+	statuses, err = mgr.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !statuses[0].Exists {
+		t.Errorf("expected %s to exist", statuses[0].Name)
+	}
+
+	// Test Clean
+	if err := mgr.Clean(); err != nil {
+		t.Fatalf("Clean failed: %v", err)
+	}
+	if _, err := os.Stat(cacheDir); !os.IsNotExist(err) {
+		t.Error("expected cacheDir to be removed")
 	}
 }
 
@@ -80,8 +119,7 @@ func TestManagerDownloadAndVerify(t *testing.T) {
 		t.Errorf("expected content %s, got %s", string(mockContent), string(data))
 	}
 
-	// Verify subsequent ensureAsset hits cache without re-downloading
-	server.Close() // close server to guarantee no new requests
+	server.Close()
 	dest2, err := mgr.ensureAsset(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("cached asset ensure failed: %v", err)

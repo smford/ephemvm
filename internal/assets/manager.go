@@ -26,6 +26,16 @@ type AssetSpec struct {
 	SHA256   string
 }
 
+// AssetStatus reports information about a cached asset.
+type AssetStatus struct {
+	Name        string
+	Path        string
+	Exists      bool
+	Size        int64
+	Permissions os.FileMode
+	ValidSHA256 bool
+}
+
 // DefaultAssets returns the canonical asset specifications for the current architecture.
 func DefaultAssets(arch string) (kernel AssetSpec, rootfs AssetSpec, err error) {
 	switch arch {
@@ -79,13 +89,10 @@ func NewManager(cacheDir string) *Manager {
 }
 
 // EnsureAssets returns valid file paths for the kernel and rootfs.
-// If explicit paths are provided, they are validated directly.
-// Otherwise, the manager downloads and verifies cached assets.
 func (m *Manager) EnsureAssets(ctx context.Context, customKernel, customRootfs string) (string, string, error) {
 	kernelPath := customKernel
 	rootfsPath := customRootfs
 
-	// Determine default asset specs if custom paths are not provided
 	defaultKernelSpec, defaultRootfsSpec, err := DefaultAssets(m.Arch)
 	if err != nil && (kernelPath == "" || rootfsPath == "") {
 		return "", "", fmt.Errorf("failed to resolve default assets: %w", err)
@@ -115,7 +122,6 @@ func (m *Manager) EnsureAssets(ctx context.Context, customKernel, customRootfs s
 		}
 	}
 
-	// Ensure base rootfs is read-only (0444)
 	if err := enforceReadOnly(rootfsPath); err != nil {
 		return "", "", fmt.Errorf("failed to enforce read-only permission on base rootfs: %w", err)
 	}
@@ -123,7 +129,43 @@ func (m *Manager) EnsureAssets(ctx context.Context, customKernel, customRootfs s
 	return kernelPath, rootfsPath, nil
 }
 
-// ensureAsset checks local cache, verifies checksum, or downloads the asset.
+// Status inspects the current cache status for standard assets.
+func (m *Manager) Status() ([]AssetStatus, error) {
+	kSpec, rSpec, err := DefaultAssets(m.Arch)
+	if err != nil {
+		return nil, err
+	}
+
+	specs := []AssetSpec{kSpec, rSpec}
+	statuses := make([]AssetStatus, len(specs))
+
+	for i, spec := range specs {
+		p := filepath.Join(m.CacheDir, spec.Filename)
+		st := AssetStatus{
+			Name: spec.Filename,
+			Path: p,
+		}
+		info, err := os.Stat(p)
+		if err == nil {
+			st.Exists = true
+			st.Size = info.Size()
+			st.Permissions = info.Mode().Perm()
+			st.ValidSHA256 = (VerifySHA256(p, spec.SHA256) == nil)
+		}
+		statuses[i] = st
+	}
+
+	return statuses, nil
+}
+
+// Clean removes all cached assets from the cache directory.
+func (m *Manager) Clean() error {
+	if _, err := os.Stat(m.CacheDir); os.IsNotExist(err) {
+		return nil
+	}
+	return os.RemoveAll(m.CacheDir)
+}
+
 func (m *Manager) ensureAsset(ctx context.Context, spec AssetSpec) (string, error) {
 	if err := os.MkdirAll(m.CacheDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create asset cache directory: %w", err)
@@ -132,16 +174,13 @@ func (m *Manager) ensureAsset(ctx context.Context, spec AssetSpec) (string, erro
 	destPath := filepath.Join(m.CacheDir, spec.Filename)
 
 	if info, err := os.Stat(destPath); err == nil && info.Size() > 0 {
-		// Verify checksum
 		if err := VerifySHA256(destPath, spec.SHA256); err == nil {
 			_ = enforceReadOnly(destPath)
 			return destPath, nil
 		}
-		// Corrupted or outdated file, remove and re-download
 		_ = os.Remove(destPath)
 	}
 
-	// Download to a temporary file in the cache directory
 	tmpFile, err := os.CreateTemp(m.CacheDir, fmt.Sprintf(".%s-*.download", spec.Filename))
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary download file: %w", err)
@@ -184,12 +223,10 @@ func (m *Manager) ensureAsset(ctx context.Context, spec AssetSpec) (string, erro
 		return "", fmt.Errorf("checksum mismatch for %s: expected %s, got %s", spec.Filename, spec.SHA256, computedHash)
 	}
 
-	// Mark read-only before moving
 	if err := os.Chmod(tmpPath, 0444); err != nil {
 		return "", fmt.Errorf("failed to set read-only permissions: %w", err)
 	}
 
-	// Atomically move into place
 	if err := os.Rename(tmpPath, destPath); err != nil {
 		return "", fmt.Errorf("failed to move downloaded asset to destination: %w", err)
 	}
