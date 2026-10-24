@@ -114,8 +114,7 @@ def gen_hero_terminal():
     """
 
     svg = wrap_terminal(width, height, title, content, status)
-    with open(f"{OUTPUT_DIR}/hero-terminal.svg", "w", encoding="utf-8") as f:
-        f.write(svg)
+    save_clean_svg(f"{OUTPUT_DIR}/hero-terminal.svg", svg)
 
 def gen_destructive_terminal():
     width = 780
@@ -174,8 +173,7 @@ def gen_destructive_terminal():
     """
 
     svg = wrap_terminal(width, height, title, content, status)
-    with open(f"{OUTPUT_DIR}/destructive-terminal.svg", "w", encoding="utf-8") as f:
-        f.write(svg)
+    save_clean_svg(f"{OUTPUT_DIR}/destructive-terminal.svg", svg)
 
 def gen_ai_agent_terminal():
     width = 780
@@ -223,8 +221,7 @@ def gen_ai_agent_terminal():
     """
 
     svg = wrap_terminal(width, height, title, content, status)
-    with open(f"{OUTPUT_DIR}/ai-agent-terminal.svg", "w", encoding="utf-8") as f:
-        f.write(svg)
+    save_clean_svg(f"{OUTPUT_DIR}/ai-agent-terminal.svg", svg)
 
 def gen_cache_terminal():
     width = 780
@@ -299,8 +296,7 @@ def gen_cache_terminal():
     """
 
     svg = wrap_terminal(width, height, title, content, status)
-    with open(f"{OUTPUT_DIR}/cache-terminal.svg", "w", encoding="utf-8") as f:
-        f.write(svg)
+    save_clean_svg(f"{OUTPUT_DIR}/cache-terminal.svg", svg)
 
 def gen_architecture_diagram():
     width = 820
@@ -394,8 +390,14 @@ def gen_architecture_diagram():
   <text x="420" y="403" fill="#3fb950" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="10" font-weight="600" text-anchor="middle">Unbuffered Real-time Stream</text>
 </svg>"""
 
-    with open(f"{OUTPUT_DIR}/architecture-diagram.svg", "w", encoding="utf-8") as f:
-        f.write(svg)
+    save_clean_svg(f"{OUTPUT_DIR}/architecture-diagram.svg", svg)
+
+def save_clean_svg(path, content):
+    lines = content.strip().split("\n")
+    clean_lines = [l.rstrip() for l in lines]
+    clean_content = "\n".join(clean_lines) + "\n"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(clean_content)
 
 def main():
     print("Generating terminal screenshots and diagrams...")

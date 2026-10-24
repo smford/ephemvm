@@ -28,7 +28,7 @@
 
     <!-- Terminal Content Area -->
     <g transform="translate(24, 60)" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" line-height="1.5">
-      
+
       <!-- Command Prompt Line -->
       <text y="0">
         <tspan fill="#7ee787" font-weight="bold">user@workstation</tspan><tspan fill="#8b949e">:</tspan><tspan fill="#79c0ff">~</tspan><tspan fill="#8b949e">$ </tspan>
@@ -81,14 +81,14 @@
         <tspan fill="#7ee787" font-weight="bold">user@workstation</tspan><tspan fill="#8b949e">:</tspan><tspan fill="#79c0ff">~</tspan><tspan fill="#8b949e">$ </tspan>
         <tspan fill="#79c0ff" opacity="0.8">_</tspan>
       </text>
-    
+
     </g>
 
-    
+
     <!-- Terminal Footer Status Bar -->
     <rect x="1" y="328" width="778" height="31" fill="#161b22" rx="0 0 10 10"/>
     <line x1="1" y1="328" x2="779" y2="328" stroke="#30363d" stroke-width="1"/>
-    
+
       <text x="24" y="348" fill="#3fb950" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" font-weight="600">
         📦 CACHE DIR: ~/.cache/ephemvm
       </text>
@@ -98,7 +98,7 @@
       <text x="756" y="348" fill="#8b949e" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="11" text-anchor="end">
         Air-Gap Ready
       </text>
-    
-        
+
+
   </g>
 </svg>
