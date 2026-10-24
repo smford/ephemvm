@@ -4,8 +4,15 @@
 > Boots in under **50ms**, executes your command in hardware virtualization, forwards the exit code, and evaporates instantly without leaving a trace.
 
 [![CI](https://github.com/smford/ephemvm/actions/workflows/ci.yml/badge.svg)](https://github.com/smford/ephemvm/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://smford.github.io/ephemvm/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/smford/ephemvm)](https://goreportcard.com/report/github.com/smford/ephemvm)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+<p align="center">
+  <img src="docs/assets/screenshots/hero-terminal.svg" alt="ephemvm Terminal Preview" width="800">
+</p>
 
 ---
 
