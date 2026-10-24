@@ -82,4 +82,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.ref_name }}
         run: |
-          gh workflow run pages.yml -f version="${TAG_NAME}" || true
+          gh workflow run pages.yml --ref main -f version="${TAG_NAME}" || true

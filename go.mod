@@ -1,6 +1,6 @@
 module github.com/smford/ephemvm
 
-go 1.27.2
+go 1.24.0
 
 require (
 	github.com/firecracker-microvm/firecracker-go-sdk v1.0.0

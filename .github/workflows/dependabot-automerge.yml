@@ -25,5 +25,5 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash "$PR_URL"
+          gh pr review --approve "$PR_URL" || echo "Notice: PR review approval skipped (check repo action permissions)"
+          gh pr merge --auto --squash "$PR_URL" || echo "Notice: Auto-merge skipped"
