@@ -1,6 +1,8 @@
 package assets
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,14 +11,18 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
 const (
-	KernelFilename = "vmlinux"
-	RootfsFilename = "rootfs.ext4"
+	KernelFilename      = "vmlinux"
+	RootfsFilename      = "rootfs.ext4"
+	FirecrackerFilename = "firecracker"
+	FirecrackerVersion  = "v1.10.1"
 )
 
 // AssetSpec defines download source and integrity check for an asset.
@@ -70,6 +76,18 @@ func DefaultAssets(arch string) (kernel AssetSpec, rootfs AssetSpec, err error) 
 	}
 }
 
+// FirecrackerReleaseURL returns the official release tarball URL for the architecture.
+func FirecrackerReleaseURL(arch string) (string, error) {
+	switch arch {
+	case "amd64":
+		return fmt.Sprintf("https://github.com/firecracker-microvm/firecracker/releases/download/%s/firecracker-%s-x86_64.tgz", FirecrackerVersion, FirecrackerVersion), nil
+	case "arm64":
+		return fmt.Sprintf("https://github.com/firecracker-microvm/firecracker/releases/download/%s/firecracker-%s-aarch64.tgz", FirecrackerVersion, FirecrackerVersion), nil
+	default:
+		return "", fmt.Errorf("unsupported architecture for firecracker binary: %s", arch)
+	}
+}
+
 // Manager orchestrates caching, downloading, and integrity checking of VM assets.
 type Manager struct {
 	CacheDir   string
@@ -88,7 +106,7 @@ func NewManager(cacheDir string) *Manager {
 	}
 }
 
-// EnsureAssets returns valid file paths for the kernel and rootfs.
+// EnsureAssets returns valid file paths for the kernel and rootfs, and ensures Firecracker binary is available.
 func (m *Manager) EnsureAssets(ctx context.Context, customKernel, customRootfs string) (string, string, error) {
 	kernelPath := customKernel
 	rootfsPath := customRootfs
@@ -126,7 +144,99 @@ func (m *Manager) EnsureAssets(ctx context.Context, customKernel, customRootfs s
 		return "", "", fmt.Errorf("failed to enforce read-only permission on base rootfs: %w", err)
 	}
 
+	// On Linux, also ensure Firecracker binary is available
+	if runtime.GOOS == "linux" {
+		if _, err := exec.LookPath("firecracker"); err != nil {
+			_, _ = m.EnsureFirecracker(ctx)
+		}
+	}
+
 	return kernelPath, rootfsPath, nil
+}
+
+// EnsureFirecracker downloads and extracts the official Firecracker binary into the cache directory.
+func (m *Manager) EnsureFirecracker(ctx context.Context) (string, error) {
+	binDir := filepath.Join(m.CacheDir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create cache bin directory: %w", err)
+	}
+
+	destPath := filepath.Join(binDir, FirecrackerFilename)
+	if info, err := os.Stat(destPath); err == nil && info.Size() > 0 {
+		return destPath, nil
+	}
+
+	url, err := FirecrackerReleaseURL(m.Arch)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := m.HTTPClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to download firecracker tarball from %s: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download of firecracker failed with HTTP status: %s", resp.Status)
+	}
+
+	gzReader, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to decompress gzip tarball: %w", err)
+	}
+	defer gzReader.Close()
+
+	tarReader := tar.NewReader(gzReader)
+	var found bool
+
+	tmpFile, err := os.CreateTemp(binDir, ".firecracker-*.tmp")
+	if err != nil {
+		return "", err
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}()
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("error reading tar archive: %w", err)
+		}
+
+		if strings.Contains(header.Name, "firecracker-v") && !strings.HasSuffix(header.Name, ".debug") {
+			if _, err := io.Copy(tmpFile, tarReader); err != nil {
+				return "", fmt.Errorf("failed to extract firecracker binary: %w", err)
+			}
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return "", errors.New("firecracker binary not found in downloaded release archive")
+	}
+
+	_ = tmpFile.Close()
+	if err := os.Chmod(tmpPath, 0755); err != nil {
+		return "", err
+	}
+
+	if err := os.Rename(tmpPath, destPath); err != nil {
+		return "", err
+	}
+
+	return destPath, nil
 }
 
 // Status inspects the current cache status for standard assets.
@@ -137,9 +247,9 @@ func (m *Manager) Status() ([]AssetStatus, error) {
 	}
 
 	specs := []AssetSpec{kSpec, rSpec}
-	statuses := make([]AssetStatus, len(specs))
+	statuses := make([]AssetStatus, 0, len(specs)+1)
 
-	for i, spec := range specs {
+	for _, spec := range specs {
 		p := filepath.Join(m.CacheDir, spec.Filename)
 		st := AssetStatus{
 			Name: spec.Filename,
@@ -152,8 +262,22 @@ func (m *Manager) Status() ([]AssetStatus, error) {
 			st.Permissions = info.Mode().Perm()
 			st.ValidSHA256 = (VerifySHA256(p, spec.SHA256) == nil)
 		}
-		statuses[i] = st
+		statuses = append(statuses, st)
 	}
+
+	// Add Firecracker binary status
+	fcPath := filepath.Join(m.CacheDir, "bin", FirecrackerFilename)
+	fcStatus := AssetStatus{
+		Name: FirecrackerFilename,
+		Path: fcPath,
+	}
+	if info, err := os.Stat(fcPath); err == nil {
+		fcStatus.Exists = true
+		fcStatus.Size = info.Size()
+		fcStatus.Permissions = info.Mode().Perm()
+		fcStatus.ValidSHA256 = true
+	}
+	statuses = append(statuses, fcStatus)
 
 	return statuses, nil
 }

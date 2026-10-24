@@ -1,6 +1,6 @@
 # ephemvm Documentation
 
-> **A blazing-fast, disposable Linux machine for running any command in total isolation.**  
+> **A blazing-fast, disposable Linux machine for running any command in total isolation.**
 > Boots in under **50ms**, executes your command in hardware virtualization, forwards the exit code, and evaporates instantly without leaving a trace.
 
 [![CI](https://github.com/smford/ephemvm/actions/workflows/ci.yml/badge.svg)](https://github.com/smford/ephemvm/actions/workflows/ci.yml)

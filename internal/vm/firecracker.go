@@ -146,11 +146,13 @@ func FindFirecrackerBinary(customPath string) (string, error) {
 		return p, nil
 	}
 
-	// Check standard install locations
+	// Check standard install locations and cache directory
+	homeDir, _ := os.UserHomeDir()
 	candidates := []string{
+		filepath.Join(homeDir, ".cache", "ephemvm", "bin", "firecracker"),
 		"/usr/local/bin/firecracker",
 		"/usr/bin/firecracker",
-		filepath.Join(os.Getenv("HOME"), ".local", "bin", "firecracker"),
+		filepath.Join(homeDir, ".local", "bin", "firecracker"),
 	}
 
 	for _, c := range candidates {

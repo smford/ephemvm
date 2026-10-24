@@ -53,8 +53,8 @@ func TestManagerStatusAndClean(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status failed: %v", err)
 	}
-	if len(statuses) != 2 {
-		t.Fatalf("expected 2 asset statuses, got %d", len(statuses))
+	if len(statuses) != 3 {
+		t.Fatalf("expected 3 asset statuses, got %d", len(statuses))
 	}
 	for _, st := range statuses {
 		if st.Exists {

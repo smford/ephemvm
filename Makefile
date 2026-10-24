@@ -11,13 +11,20 @@ LDFLAGS := -s -w \
 	-X github.com/smford/ephemvm/internal/version.Commit=$(COMMIT) \
 	-X github.com/smford/ephemvm/internal/version.Date=$(DATE)
 
-.PHONY: all build build-all build-linux build-linux-amd64 build-linux-arm64 build-darwin-arm64 test test-integration lint vet clean
+.PHONY: all build build-all build-linux build-linux-amd64 build-linux-arm64 build-darwin-arm64 test test-integration lint vet install clean
 
 all: vet test build
+
+PREFIX ?= /usr/local
+INSTALL_DIR ?= $(PREFIX)/bin
 
 build:
 	@mkdir -p $(BIN_DIR)
 	go build -v -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/ephemvm
+
+install: build
+	@mkdir -p $(DESTDIR)$(INSTALL_DIR)
+	install -m 755 $(BINARY) $(DESTDIR)$(INSTALL_DIR)/ephemvm
 
 build-all: build-linux-amd64 build-linux-arm64 build-darwin-arm64
 

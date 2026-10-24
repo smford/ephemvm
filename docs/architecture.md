@@ -50,16 +50,16 @@
 
 ## Storage & Copy-on-Write Overlay
 
-1. **Strict Base Image Protection:**  
+1. **Strict Base Image Protection:**
    The base root filesystem (`rootfs.ext4`) and kernel (`vmlinux`) are stored in `~/.cache/ephemvm/` with read-only permissions (`0444`). The base image is never opened in write mode or attached to Firecracker directly.
 
-2. **Reflink / FICLONE:**  
+2. **Reflink / FICLONE:**
    When an execution starts, `ephemvm` calls the Linux `FICLONE` ioctl on filesystems supporting block-level copy-on-write (Btrfs, XFS with reflink enabled, ZFS with block cloning). This generates an instant, zero-byte file clone that only allocates physical blocks when mutated.
 
-3. **Sparse Copy Fallback:**  
+3. **Sparse Copy Fallback:**
    If the filesystem does not support `FICLONE`, `ephemvm` reads the base image in 64KB blocks. Runs of zero bytes are skipped via `Seek` calls rather than written, preserving sparse disk allocation and copying at gigabytes per second.
 
-4. **Deferred Cleanup:**  
+4. **Deferred Cleanup:**
    The entire per-run directory `/tmp/ephemvm-<uuid>/` is removed via deferred cleanup before process termination.
 
 ---
