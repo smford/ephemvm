@@ -1,0 +1,14 @@
+# Binaries and build artifacts
+bin/
+dist/
+
+# Test and temporary files
+*.test
+*.out
+*.log
+*.sock
+*.ext4
+.tmp-*
+
+# OS specific files
+.DS_Store
