@@ -4,9 +4,9 @@ go 1.24.0
 
 require (
 	github.com/firecracker-microvm/firecracker-go-sdk v1.0.0
-	github.com/sirupsen/logrus v1.8.1
+	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/sys v0.0.0-20220204135822-1c1b9b1eba6a
+	golang.org/x/sys v0.13.0
 )
 
 require (
