@@ -1,12 +1,12 @@
 module github.com/smford/ephemvm
 
-go 1.24.0
+go 1.26.0
 
 require (
 	github.com/firecracker-microvm/firecracker-go-sdk v1.0.0
 	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.49.0
 )
 
 require (
